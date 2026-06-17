@@ -434,7 +434,7 @@ body::before{
 /* ============================================================
    AYARLAR — bunları kendi değerlerinle değiştir
    ============================================================ */
-const API_URL = 'https://script.google.com/macros/s/AKfycbzhofwZDIEju4-FHs8D-byHU-4Q9YqBLW9_88pNkvh8vE4GdUUZDY-_MKM7E6aDcBJtWA/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxtZP_zRmvryQ0mEEN1hwzxJlclyXDedvbszJ1dBcrfFhpaKElrKjJkpLcsula5CfZu/exec';
 const GOOGLE_CLIENT_ID = '48721393532-h3phnsf14rj4mpdfsg11l26h4mt64qdr.apps.googleusercontent.com';
 
 /* ============================================================
@@ -486,11 +486,25 @@ function closeSheet(){
 
 async function api(action, payload={}){
   const body = { action, email: state.user ? state.user.email : payload.email, ...payload };
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    body: JSON.stringify(body)
-  });
-  const data = await res.json();
+  let res;
+  try {
+    res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify(body)
+      // NOT: Content-Type header'ı kasıtlı olarak ayarlanmıyor. Apps Script Web App'leri
+      // tarayıcının gönderdiği "OPTIONS preflight" isteğine cevap veremez; eğer
+      // Content-Type: application/json header'ı eklenirse tarayıcı önce preflight atar
+      // ve bu NetworkError ile sonuçlanır. Header'sız (text/plain sayılan) istek preflight'ı tetiklemez.
+    });
+  } catch(networkErr) {
+    throw new Error('Sunucuya bağlanılamadı. API_URL doğru mu ve Apps Script dağıtımı "Herkes" erişimine açık mı kontrol edin.');
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch(parseErr) {
+    throw new Error('Sunucudan geçersiz yanıt alındı (Apps Script dağıtım ayarlarını kontrol edin).');
+  }
   if(data.error){
     throw new Error(data.message || data.error);
   }
