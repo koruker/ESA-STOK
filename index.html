@@ -375,6 +375,7 @@ async function onGoogleCred(resp){
   try{
     const d=await api('login',{email:pl.email});
     S.user=d.user;
+    try{localStorage.setItem('depo_session_email',pl.email);}catch(e){}
     showLoading('Veriler yükleniyor…');
     await loadAppData();
     hideLoading();
@@ -385,6 +386,26 @@ async function onGoogleCred(resp){
     } else {
       $('#loginStatus').textContent='Hata: '+err.message;
     }
+  }
+}
+
+async function tryAutoLogin(){
+  let savedEmail;
+  try{ savedEmail=localStorage.getItem('depo_session_email'); }catch(e){ savedEmail=null; }
+  if(!savedEmail) return false;
+  $('#loginStatus').textContent='Oturum açılıyor…';
+  try{
+    const d=await api('login',{email:savedEmail});
+    S.user=d.user;
+    showLoading('Veriler yükleniyor…');
+    await loadAppData();
+    hideLoading();
+    enterApp();
+    return true;
+  }catch(err){
+    try{localStorage.removeItem('depo_session_email');}catch(e){}
+    $('#loginStatus').textContent='';
+    return false;
   }
 }
 
@@ -416,6 +437,9 @@ function enterApp(){
   if(S.user.role==='admin'){
     $$('.admin-only').forEach(t=>t.classList.remove('hidden'));
     if(S.pendingRequests.length>0) $('#notifBtn').classList.remove('hidden');
+  } else {
+    $$('.admin-only').forEach(t=>t.classList.add('hidden'));
+    $('#notifBtn').classList.add('hidden');
   }
   renderView('stock');
 }
@@ -1143,13 +1167,18 @@ $('#notifBtn').onclick=()=>{const t=$('.tab[data-tab="a-requests"]');if(t){$$('.
 /* ===== LOGOUT ===== */
 $('#logoutBtn').onclick=()=>{
   if(window.google)google.accounts.id.disableAutoSelect();
-  S.user=null;$('#mainApp').classList.add('hidden');$('#loginView').classList.remove('hidden');$('#loginStatus').textContent='';
+  S.user=null;
+  try{localStorage.removeItem('depo_session_email');}catch(e){}
+  $$('.admin-only').forEach(t=>t.classList.add('hidden'));
+  $('#notifBtn').classList.add('hidden');
+  $('#mainApp').classList.add('hidden');$('#loginView').classList.remove('hidden');$('#loginStatus').textContent='';
 };
 
 /* ===== INIT ===== */
-window.addEventListener('load',()=>{
+window.addEventListener('load',async()=>{
   if(screen.orientation?.lock)screen.orientation.lock('portrait').catch(()=>{});
-  initGSI();
+  const loggedIn=await tryAutoLogin();
+  if(!loggedIn) initGSI();
 });
 </script>
 </body>
