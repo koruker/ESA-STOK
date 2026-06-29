@@ -306,7 +306,7 @@ textarea.fi{resize:vertical;min-height:70px;}
 <div id="toastRoot"></div>
 <script>
 /* ===== CONFIG ===== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxtZP_zRmvryQ0mEEN1hwzxJlclyXDedvbszJ1dBcrfFhpaKElrKjJkpLcsula5CfZu/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxcbqrKZk83V_W95X19Nk22jO07IMYQuBwGKBOU3AyjErHZ_F2EJQQhFdk4XyvqS1OdLA/exec';
 const GOOGLE_CLIENT_ID = '48721393532-h3phnsf14rj4mpdfsg11l26h4mt64qdr.apps.googleusercontent.com';
 
 /* ===== STATE ===== */
@@ -655,9 +655,11 @@ function renderUserList(){
       </div>`;
     row.querySelector('[data-act="bal"]').onclick=()=>openBalanceEditor(u.email);
     row.querySelector('[data-act="role"]').onclick=async()=>{
+      if(u.email===S.user.email){showToast('Kendi rolünüzü değiştiremezsiniz.','bad');return;}
       showLoading();try{await api('adminSaveUser',{id:u.email,targetEmail:u.email,role:u.role==='admin'?'operator':'admin'});await loadAppData();hideLoading();renderUserList();showToast('Rol güncellendi.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
     };
     row.querySelector('[data-act="del"]').onclick=async()=>{
+      if(u.email===S.user.email){showToast('Kendinizi silemezsiniz.','bad');return;}
       if(!confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz?'))return;
       showLoading();try{await api('adminDeleteUser',{targetEmail:u.email});await loadAppData();hideLoading();renderUserList();showToast('Silindi.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
     };
