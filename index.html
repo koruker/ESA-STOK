@@ -257,6 +257,7 @@ textarea.fi{resize:vertical;min-height:70px;}
       <div class="tab admin-only hidden" data-tab="a-products">Ürünler</div>
       <div class="tab admin-only hidden" data-tab="a-cats">Kategoriler</div>
       <div class="tab admin-only hidden" data-tab="a-machines">Makineler</div>
+      <div class="tab admin-only hidden" data-tab="a-scrap">Hurda</div>
       <div class="tab admin-only hidden" data-tab="a-requests">Talepler</div>
       <div class="tab admin-only hidden" data-tab="a-log">Hareketler</div>
     </div>
@@ -290,6 +291,12 @@ textarea.fi{resize:vertical;min-height:70px;}
     <div class="view hidden" id="view-a-machines">
       <div class="sec-title">Makine Listesi</div>
       <div id="machineList"></div>
+      <div class="sec-title" style="margin-top:18px">Makine Bakiyeleri</div>
+      <div id="machineBalances"></div>
+    </div>
+    <div class="view hidden" id="view-a-scrap">
+      <div class="sec-title">Hurda Kayıtları</div>
+      <div id="scrapList"></div>
     </div>
     <div class="view hidden" id="view-a-requests">
       <div class="sec-title">Bekleyen Yetki Talepleri</div>
@@ -306,14 +313,14 @@ textarea.fi{resize:vertical;min-height:70px;}
 <div id="toastRoot"></div>
 <script>
 /* ===== CONFIG ===== */
-const API_URL = 'https://script.google.com/macros/s/AKfycbzYb28sKVKneMakmdwrbsz2yH86Ooms6aOs-W8PBtkF7Cejm6cGfGpk_DH-53ZpuM6Rag/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyzIy2XNCNMIpqTuxr6cI5zAPgeETf4mMFryMZWXRorOhP6hKpDRyT2KQ04q1H109RlCw/exec';
 const GOOGLE_CLIENT_ID = '48721393532-h3phnsf14rj4mpdfsg11l26h4mt64qdr.apps.googleusercontent.com';
 
 /* ===== STATE ===== */
 let S = {
   user:null, products:[], categories:[], machines:[], fields:[],
   myBalances:[], allBalances:[], transactions:[], allUsers:[],
-  pendingRequests:[], myRequests:[], topProductIds:[],
+  pendingRequests:[], myRequests:[], topProductIds:[], scrapLog:[],
   fieldTemplate:'', // comma-separated field ids
   activeCategory:null, searchTerm:'', activeTab:'stock'
 };
@@ -394,6 +401,7 @@ async function loadAppData(){
   if(d.transactions) S.transactions=d.transactions;
   if(d.allUsers) S.allUsers=d.allUsers;
   if(d.pendingRequests) S.pendingRequests=d.pendingRequests;
+  if(d.scrapLog) S.scrapLog=d.scrapLog;
   if(d.myRequests) S.myRequests=d.myRequests;
 }
 
@@ -434,7 +442,8 @@ function renderView(name){
   else if(name==='a-users'){renderAddUserForm();renderUserList();}
   else if(name==='a-products'){renderAdminProducts();fab.classList.remove('hidden');fab.onclick=()=>openProductSheet();}
   else if(name==='a-cats'){renderCatTree();fab.classList.remove('hidden');fab.onclick=()=>openCatSheet();}
-  else if(name==='a-machines'){renderMachineList();fab.classList.remove('hidden');fab.onclick=()=>openMachineSheet();}
+  else if(name==='a-machines'){renderMachineList();renderMachineBalances();fab.classList.remove('hidden');fab.onclick=()=>openMachineSheet();}
+  else if(name==='a-scrap'){renderScrapList();}
   else if(name==='a-requests'){renderRequests();}
   else if(name==='a-log'){renderTxLog();}
 }
@@ -518,8 +527,8 @@ function makeProdCard(p,isTop){
 
 /* ===== STOCK ACTION SHEET ===== */
 function openStockActionSheet(product){
-  const myBal=S.myBalances.find(b=>b.productId===product.id);
-  const balQty=myBal?Number(myBal.quantity):0;
+  const myBalsForProduct=S.myBalances.filter(b=>b.productId===product.id);
+  const totalBalQty=myBalsForProduct.reduce((s,b)=>s+Number(b.quantity||0),0);
   const authorized=String(product.authorizedUsers||'').split(',').map(s=>s.trim()).filter(Boolean);
   const hasAuth=authorized.length===0||authorized.includes(S.user.email)||S.user.role==='admin';
   const stock=Number(product.stock)||0;
@@ -529,12 +538,12 @@ function openStockActionSheet(product){
   sheet.innerHTML=`
     <div class="sheet-handle"></div>
     <h2>${esc(product.name)}</h2>
-    <div class="sub">Stokta: ${stock} ${product.unit||'adet'} · Bakiyenizde: ${balQty}</div>
+    <div class="sub">Stokta: ${stock} ${product.unit||'adet'} · Bakiyenizde: ${totalBalQty}</div>
     <div id="sErr"></div>
     <div class="act-grid">
       <div class="act-card${!hasAuth?' disabled':''}" data-t="cekim"><span class="act-ico">📤</span><span class="act-label">Çekim</span></div>
-      <div class="act-card${balQty<=0?' disabled':''}" data-t="iade"><span class="act-ico">↩️</span><span class="act-label">İade</span></div>
-      <div class="act-card${balQty<=0?' disabled':''}" data-t="hurda"><span class="act-ico">🗑️</span><span class="act-label">Hurda</span></div>
+      <div class="act-card${totalBalQty<=0?' disabled':''}" data-t="iade"><span class="act-ico">↩️</span><span class="act-label">İade</span></div>
+      <div class="act-card${totalBalQty<=0?' disabled':''}" data-t="hurda"><span class="act-ico">🗑️</span><span class="act-label">Hurda</span></div>
       ${!hasAuth?`<div class="act-card" data-t="request"><span class="act-ico">🙋</span><span class="act-label">Yetki İste</span></div>`:''}
     </div>
     <div id="dynFields"></div>
@@ -554,6 +563,11 @@ function openStockActionSheet(product){
     };
   });
 
+  function machineBalQty(machineId){
+    const b=myBalsForProduct.find(x=>String(x.machineId||'')===(machineId||''));
+    return b?Number(b.quantity):0;
+  }
+
   function renderDynFields(type){
     const dyn=$('#dynFields');
     if(type==='request'){
@@ -561,11 +575,32 @@ function openStockActionSheet(product){
       <div class="fg"><label class="fl">Kullanılacak Makine</label><select class="fs" id="reqMac"><option value="">Seçin…</option>${S.machines.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></div>`;
       return;
     }
-    const maxQty=type==='cekim'?stock:balQty;
-    const macSel=type==='cekim'?`<div class="fg"><label class="fl">Makine <span style="color:var(--bad)">*</span></label><select class="fs" id="macSel"><option value="">Seçin…</option>${S.machines.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></div>`:'';
-    dyn.innerHTML=`<div class="fg"><label class="fl">Adet (maks. ${maxQty})</label><div class="stepper"><button type="button" class="step-btn" id="qMinus">−</button><input class="fi" type="number" id="qInput" value="1" min="1" max="${maxQty}"><button type="button" class="step-btn" id="qPlus">+</button></div></div>${macSel}`;
+    if(type==='cekim'){
+      dyn.innerHTML=`
+        <div class="fg"><label class="fl">Makine <span style="color:var(--bad)">*</span></label><select class="fs" id="macSel"><option value="">Seçin…</option>${S.machines.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></div>
+        <div class="fg"><label class="fl">Adet (maks. <span id="maxQtyLbl">${stock}</span>)</label><div class="stepper"><button type="button" class="step-btn" id="qMinus">−</button><input class="fi" type="number" id="qInput" value="1" min="1" max="${stock}"><button type="button" class="step-btn" id="qPlus">+</button></div></div>`;
+      $('#qMinus').onclick=()=>{const i=$('#qInput');i.value=Math.max(1,Number(i.value)-1);};
+      $('#qPlus').onclick=()=>{const i=$('#qInput');i.value=Math.min(stock,Number(i.value)+1);};
+      return;
+    }
+    // iade / hurda: önce makine seç (o makinedeki bakiyeye göre maks belirlenir)
+    const machinesWithBal=myBalsForProduct.filter(b=>Number(b.quantity)>0);
+    dyn.innerHTML=`
+      <div class="fg"><label class="fl">Hangi makineden? <span style="color:var(--bad)">*</span></label>
+        <select class="fs" id="macSel"><option value="">Seçin…</option>${machinesWithBal.map(b=>{
+          const m=S.machines.find(x=>x.id===b.machineId);
+          return `<option value="${b.machineId||''}">${esc(m?m.name:'(Makinesiz)')} — bakiye: ${b.quantity}</option>`;
+        }).join('')}</select>
+      </div>
+      <div class="fg"><label class="fl">Adet (maks. <span id="maxQtyLbl">0</span>)</label><div class="stepper"><button type="button" class="step-btn" id="qMinus">−</button><input class="fi" type="number" id="qInput" value="1" min="1" max="1"><button type="button" class="step-btn" id="qPlus">+</button></div></div>`;
+    $('#macSel').onchange=e=>{
+      const maxQ=machineBalQty(e.target.value)||1;
+      $('#maxQtyLbl').textContent=maxQ;
+      $('#qInput').max=maxQ;
+      $('#qInput').value=Math.min(Number($('#qInput').value)||1,maxQ);
+    };
     $('#qMinus').onclick=()=>{const i=$('#qInput');i.value=Math.max(1,Number(i.value)-1);};
-    $('#qPlus').onclick=()=>{const i=$('#qInput');i.value=Math.min(maxQty,Number(i.value)+1);};
+    $('#qPlus').onclick=()=>{const i=$('#qInput');i.value=Math.min(Number(i.max)||1,Number(i.value)+1);};
   }
 
   sheet.querySelector('#cancelBtn').onclick=closeSheet;
@@ -583,8 +618,8 @@ function openStockActionSheet(product){
     }
     const qty=Number($('#qInput').value);
     if(!qty||qty<=0){errBox.innerHTML=`<div class="alert bad">Geçerli adet girin.</div>`;return;}
-    let machineId='';
-    if(selType==='cekim'){machineId=($('#macSel')||{}).value||'';if(!machineId){errBox.innerHTML=`<div class="alert bad">Makine seçimi zorunlu.</div>`;return;}}
+    const machineId=($('#macSel')||{}).value||'';
+    if(!machineId){errBox.innerHTML=`<div class="alert bad">Makine seçimi zorunlu.</div>`;return;}
     $('#confirmBtn').disabled=true;$('#confirmBtn').textContent='İşleniyor…';
     try{
       await api('stockAction',{productId:product.id,type:selType,quantity:qty,machineId});
@@ -603,8 +638,9 @@ function renderBalances(){
   if(!S.myBalances.length){wrap.appendChild(el('div','empty','<div class="ico">🧾</div><p>Üzerinizde kayıtlı stok yok.</p>'));return;}
   S.myBalances.forEach(b=>{
     const prod=S.products.find(p=>p.id===b.productId);if(!prod)return;
+    const mac=S.machines.find(m=>m.id===b.machineId);
     const card=el('div','bal-card');
-    card.innerHTML=`<div class="prod-info"><div class="prod-name">${esc(prod.name)}</div><div class="prod-meta">${esc(getCatPath(prod.categoryId))}</div></div><div class="bal-qty">${b.quantity}</div>`;
+    card.innerHTML=`<div class="prod-info"><div class="prod-name">${esc(prod.name)}</div><div class="prod-meta">${esc(getCatPath(prod.categoryId))}${mac?` · 🔧 ${esc(mac.name)}`:''}</div></div><div class="bal-qty">${b.quantity}</div>`;
     card.onclick=()=>openStockActionSheet(prod);
     wrap.appendChild(card);
   });
@@ -642,6 +678,7 @@ function renderUserList(){
   if(!S.allUsers.length){wrap.appendChild(el('div','empty','<p>Kullanıcı yok.</p>'));return;}
   S.allUsers.forEach(u=>{
     const statusCls={approved:'pill-ok',pending:'pill-warn',rejected:'pill-bad'}[u.status]||'pill-warn';
+    const isPending = u.status!=='approved';
     const row=el('div','adm-row');
     row.innerHTML=`
       <div class="adm-main">
@@ -649,10 +686,14 @@ function renderUserList(){
         <div class="adm-sub">${esc(u.email)} · ${u.role}</div>
       </div>
       <div class="adm-acts">
+        ${isPending?`<button class="btn-sm ok" data-act="approve">Onayla</button>`:''}
         <button class="btn-sm" data-act="bal">Bakiye</button>
         <button class="btn-sm" data-act="role">${u.role==='admin'?'Operatör Yap':'Admin Yap'}</button>
         <button class="btn-sm bad" data-act="del">Sil</button>
       </div>`;
+    if(isPending) row.querySelector('[data-act="approve"]').onclick=async()=>{
+      showLoading();try{await api('adminSaveUser',{id:u.email,targetEmail:u.email,status:'approved'});await loadAppData();hideLoading();renderUserList();showToast('Kullanıcı onaylandı.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
+    };
     row.querySelector('[data-act="bal"]').onclick=()=>openBalanceEditor(u.email);
     row.querySelector('[data-act="role"]').onclick=async()=>{
       if(u.email===S.user.email){showToast('Kendi rolünüzü değiştiremezsiniz.','bad');return;}
@@ -671,30 +712,56 @@ function renderUserList(){
 function openBalanceEditor(targetEmail){
   const userBals=S.allBalances.filter(b=>b.userEmail===targetEmail&&Number(b.quantity)>0);
   const overlay=el('div','sheet-overlay');const sheet=el('div','sheet');
+  function macName(mid){ const m=S.machines.find(x=>x.id===mid); return m?m.name:'(Makinesiz)'; }
   let balRows=userBals.map(b=>{
     const prod=S.products.find(p=>p.id===b.productId);
-    return `<div class="field-row"><span style="flex:1;font-size:13px">${esc(prod?prod.name:b.productId)}</span><input class="fi" style="width:80px;text-align:center;padding:8px" type="number" value="${b.quantity}" data-pid="${b.productId}"><button class="btn-sm ok" data-save="${b.productId}">Kaydet</button></div>`;
+    const mid=b.machineId||'';
+    return `<div class="adm-row" style="flex-wrap:wrap">
+      <div class="adm-main">
+        <div class="adm-title">${esc(prod?prod.name:b.productId)}</div>
+        <div class="adm-sub">🔧 ${esc(macName(mid))} · Bakiye: ${b.quantity}</div>
+      </div>
+      <div class="adm-acts">
+        <input class="fi fi-sm" style="width:64px;text-align:center" type="number" min="0" value="${b.quantity}" data-pid="${b.productId}" data-mid="${esc(mid)}">
+        <button class="btn-sm ok" data-save="${b.productId}" data-savemid="${esc(mid)}">Kaydet</button>
+        <button class="btn-sm warn" data-scrap="${b.productId}" data-scrapmid="${esc(mid)}">Hurdaya Düşür</button>
+      </div>
+    </div>`;
   }).join('');
   sheet.innerHTML=`
     <div class="sheet-handle"></div>
     <h2>Bakiye Düzenle</h2><div class="sub">${esc(targetEmail)}</div>
-    <div id="balEdRows">${balRows}</div>
+    <div id="balEdRows">${balRows||'<div class="empty" style="padding:18px"><p>Üzerinde bakiye yok.</p></div>'}</div>
     <div class="sec-title" style="margin-top:14px">Ürün Ekle / Güncelle</div>
     <div class="fg"><select class="fs" id="beProd"><option value="">Ürün seçin…</option>${S.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+    <div class="fg"><select class="fs" id="beMac"><option value="">Makine seçin (opsiyonel)…</option>${S.machines.map(m=>`<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></div>
     <div class="fg"><input class="fi" type="number" id="beQty" placeholder="Miktar" min="0"></div>
     <button class="btn-primary" id="beAdd">Güncelle / Ekle</button>
     <button class="btn-secondary" id="beClose">Kapat</button>`;
   overlay.appendChild(sheet);$('#modalRoot').appendChild(overlay);
+
+  function refresh(){ closeSheet(); openBalanceEditor(targetEmail); }
+
   sheet.querySelectorAll('[data-save]').forEach(btn=>{
     btn.onclick=async()=>{
-      const pid=btn.dataset.save;const inp=sheet.querySelector(`[data-pid="${pid}"]`);
-      showLoading();try{await api('adminAdjustBalance',{targetEmail,productId:pid,newQuantity:inp.value});await loadAppData();hideLoading();showToast('Bakiye güncellendi.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
+      const pid=btn.dataset.save;const mid=btn.dataset.savemid||'';
+      const inp=sheet.querySelector(`[data-pid="${pid}"][data-mid="${mid}"]`);
+      showLoading();try{await api('adminAdjustBalance',{targetEmail,productId:pid,machineId:mid,newQuantity:inp.value});await loadAppData();hideLoading();showToast('Bakiye güncellendi.','good');refresh();}catch(e){hideLoading();showToast(e.message,'bad');}
+    };
+  });
+  sheet.querySelectorAll('[data-scrap]').forEach(btn=>{
+    btn.onclick=async()=>{
+      const pid=btn.dataset.scrap;const mid=btn.dataset.scrapmid||'';
+      const inp=sheet.querySelector(`[data-pid="${pid}"][data-mid="${mid}"]`);
+      const qty=prompt('Hurdaya düşürülecek miktar:',inp?inp.value:'1');
+      if(qty===null) return;
+      showLoading();try{await api('adminScrapFromBalance',{targetEmail,productId:pid,machineId:mid,quantity:qty});await loadAppData();hideLoading();showToast('Hurdaya düşürüldü.','good');refresh();}catch(e){hideLoading();showToast(e.message,'bad');}
     };
   });
   sheet.querySelector('#beAdd').onclick=async()=>{
-    const pid=sheet.querySelector('#beProd').value;const qty=sheet.querySelector('#beQty').value;
+    const pid=sheet.querySelector('#beProd').value;const qty=sheet.querySelector('#beQty').value;const mid=sheet.querySelector('#beMac').value||'';
     if(!pid||qty===''){showToast('Ürün ve miktar girin.','bad');return;}
-    showLoading();try{await api('adminAdjustBalance',{targetEmail,productId:pid,newQuantity:qty});await loadAppData();hideLoading();closeSheet();showToast('Bakiye güncellendi.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
+    showLoading();try{await api('adminAdjustBalance',{targetEmail,productId:pid,machineId:mid,newQuantity:qty});await loadAppData();hideLoading();closeSheet();showToast('Bakiye güncellendi.','good');}catch(e){hideLoading();showToast(e.message,'bad');}
   };
   sheet.querySelector('#beClose').onclick=closeSheet;
 }
@@ -930,6 +997,69 @@ function openCatSheet(cat=null,presetParent=''){
       await loadAppData();closeSheet();hideLoading();renderCatTree();renderCatChips();showToast('Kaydedildi.','good');
     }catch(e){hideLoading();sheet.querySelector('#cErr').innerHTML=`<div class="alert bad">${esc(e.message)}</div>`;}
   };
+}
+
+/* ===== ADMIN: MAKİNE BAKİYELERİ ===== */
+function renderMachineBalances(){
+  const wrap=$('#machineBalances');wrap.innerHTML='';
+  const balsWithMachine=S.allBalances.filter(b=>Number(b.quantity)>0);
+  if(!balsWithMachine.length){wrap.appendChild(el('div','empty','<p>Henüz makinede bakiye yok.</p>'));return;}
+  // makineye göre grupla
+  const byMachine={};
+  balsWithMachine.forEach(b=>{
+    const mid=b.machineId||'__none__';
+    if(!byMachine[mid]) byMachine[mid]=[];
+    byMachine[mid].push(b);
+  });
+  Object.entries(byMachine).forEach(([mid,bals])=>{
+    const mac=mid==='__none__'?null:S.machines.find(m=>m.id===mid);
+    const macName=mac?mac.name:(mid==='__none__'?'Makinesiz / Genel':mid);
+    const block=el('div','adm-row');
+    block.style.flexDirection='column';block.style.alignItems='stretch';
+    const rows=bals.map(b=>{
+      const prod=S.products.find(p=>p.id===b.productId);
+      const user=S.allUsers.find(u=>u.email===b.userEmail);
+      return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px">
+        <span>${esc(prod?prod.name:b.productId)} <span style="color:var(--text-2)">· ${esc(user?user.name:b.userEmail)}</span></span>
+        <span style="font-family:var(--mono);font-weight:700;color:var(--good)">${b.quantity}</span>
+      </div>`;
+    }).join('');
+    block.innerHTML=`<div class="adm-title" style="margin-bottom:6px">🔧 ${esc(macName)}</div>${rows}`;
+    wrap.appendChild(block);
+  });
+}
+
+/* ===== ADMIN: HURDA ===== */
+function renderScrapList(){
+  const wrap=$('#scrapList');wrap.innerHTML='';
+  if(!S.scrapLog.length){wrap.appendChild(el('div','empty','<div class="ico">🗑️</div><p>Hurda kaydı yok.</p>'));return;}
+  const totalsByUser={};
+  S.scrapLog.forEach(tx=>{
+    totalsByUser[tx.userEmail]=(totalsByUser[tx.userEmail]||0)+Number(tx.quantity||0);
+  });
+  const summary=el('div','adm-row');
+  summary.style.flexDirection='column';summary.style.alignItems='stretch';
+  summary.innerHTML=`<div class="adm-title" style="margin-bottom:6px">Kullanıcı Bazlı Toplam</div>${Object.entries(totalsByUser).map(([email,total])=>{
+    const user=S.allUsers.find(u=>u.email===email);
+    return `<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12.5px"><span>${esc(user?user.name:email)}</span><span style="font-family:var(--mono);font-weight:700;color:var(--bad)">${total}</span></div>`;
+  }).join('')}`;
+  wrap.appendChild(summary);
+  const listTitle=el('div','sec-title','Tüm Hurda Kayıtları');
+  listTitle.style.marginTop='16px';
+  wrap.appendChild(listTitle);
+  S.scrapLog.forEach(tx=>{
+    const prod=S.products.find(p=>p.id===tx.productId);
+    const user=S.allUsers.find(u=>u.email===tx.userEmail);
+    const mac=S.machines.find(m=>m.id===tx.machineId);
+    const dt=new Date(tx.timestamp).toLocaleString('tr-TR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+    const row=el('div','tx-row');
+    row.innerHTML=`<span class="tx-type tx-hurda">hurda</span>
+      <div class="tx-detail">
+        <div class="tx-main">${esc(prod?prod.name:tx.productId)} · ${tx.quantity}</div>
+        <div class="tx-sub">${esc(user?user.name:tx.userEmail)}${mac?' · 🔧 '+esc(mac.name):''} · ${dt}</div>
+      </div>`;
+    wrap.appendChild(row);
+  });
 }
 
 /* ===== ADMIN: MACHINES ===== */
