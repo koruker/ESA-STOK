@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ESA · Stok Takip v3.1</title>
+<title>Stok Takip v3.1</title>
 <meta name="theme-color" content="#0a0c10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -295,7 +295,7 @@ textarea.fi{resize:vertical;min-height:70px;}
     <div class="login-wrap">
       <div class="login-card">
         <div class="login-mark">D</div>
-        <h1 id="loginTitle">ESA Stok Takip</h1>
+        <h1 id="loginTitle">Stok Takip</h1>
         <p>Devam etmek için Google hesabınızla giriş yapın. Erişim yönetici tarafından belirlenir.</p>
         <div id="gBtnWrap" style="display:flex;justify-content:center;"></div>
         <div style="margin-top:18px;text-align:center;">
@@ -314,7 +314,7 @@ textarea.fi{resize:vertical;min-height:70px;}
       <div class="brand">
         <div class="brand-mark" id="brandMark">D</div>
         <div>
-          <div class="brand-name" id="brandName">ESA STOK</div>
+          <div class="brand-name" id="brandName">Takım & Elmas STOK</div>
           <div class="brand-sub" id="userName">—</div>
         </div>
       </div>
@@ -1639,7 +1639,7 @@ function renderSettings(){
   const labels=S.labels||{};
   const block=el('div','panel-block');
   block.innerHTML=`<div class="panel-block-title">Uygulama İsimlendirmesi</div>
-    <div class="fg"><label class="fl">Uygulama Başlığı</label><input class="fi" id="stAppTitle" value="${esc(labels.appTitle||'ESA STOK')}" placeholder="ESA STOK"></div>
+    <div class="fg"><label class="fl">Uygulama Başlığı</label><input class="fi" id="stAppTitle" value="${esc(labels.appTitle||'Takım & Elmas STOK')}" placeholder="Takım & Elmas STOK"></div>
     <div class="fg"><label class="fl">"Makineler" Sekmesi Adı</label><input class="fi" id="stMachineTab" value="${esc(labels.machineTab||'Makineler')}" placeholder="Makineler, Katlar, Bölümler…"></div>
     <div class="fg"><label class="fl">"Makine Listesi" Başlık Kelimesi</label><input class="fi" id="stMachineTitle" value="${esc(labels.machineTitle||'Makine')}" placeholder="Makine, Kat, Bölüm…"></div>
     <div class="fg"><label class="fl">Makine Durum Şeridinde Ön Ek</label><input class="fi" id="stMachineChip" value="${esc(labels.machineChip||'')}" placeholder="M, Kat, Bölüm… (boş=sadece isim)"></div>
@@ -1647,7 +1647,7 @@ function renderSettings(){
   wrap.appendChild(block);
   block.querySelector('#stSave').onclick=async()=>{
     const newLabels={
-      appTitle:block.querySelector('#stAppTitle').value.trim()||'ESA STOK',
+      appTitle:block.querySelector('#stAppTitle').value.trim()||'Takım & Elmas STOK',
       machineTab:block.querySelector('#stMachineTab').value.trim()||'Makineler',
       machineTitle:block.querySelector('#stMachineTitle').value.trim()||'Makine',
       machineChip:block.querySelector('#stMachineChip').value.trim()
