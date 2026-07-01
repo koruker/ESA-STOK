@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>ESA · Stok Takip v3</title>
+<title>ESA · Stok Takip v3.1</title>
 <meta name="theme-color" content="#0a0c10">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -93,7 +93,8 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .login-status{margin-top:16px;font-size:12px;color:var(--text-2);font-family:var(--mono);min-height:16px;}
 .login-divider{display:flex;align-items:center;gap:10px;margin:18px 0;color:var(--text-2);font-size:11px;font-family:var(--mono);}
 .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:var(--line);}
-.quick-login-btn{width:100%;padding:12px;border-radius:9px;border:1px solid var(--accent-line);cursor:pointer;background:var(--accent-dim);color:var(--accent);font-weight:700;font-size:13.5px;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px;}
+.quick-login-btn{background:none;border:none;color:var(--text-2);font-size:12px;font-family:var(--mono);cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;transition:.15s;text-decoration:none;}
+.quick-login-btn:hover{color:var(--accent);background:var(--accent-dim);}
 .alert{padding:13px 15px;border-radius:9px;font-size:12.5px;line-height:1.5;margin-top:16px;text-align:left;}
 .alert.warn{background:var(--warn-dim);border:1px solid var(--warn-line);color:var(--warn);}
 .alert.bad{background:var(--bad-dim);border:1px solid var(--bad-line);color:var(--bad);}
@@ -297,11 +298,12 @@ textarea.fi{resize:vertical;min-height:70px;}
         <h1 id="loginTitle">ESA Stok Takip</h1>
         <p>Devam etmek için Google hesabınızla giriş yapın. Erişim yönetici tarafından belirlenir.</p>
         <div id="gBtnWrap" style="display:flex;justify-content:center;"></div>
-        <div class="login-divider">veya</div>
-        <button class="quick-login-btn" id="quickLoginBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          Hızlı Giriş (ID + PIN)
-        </button>
+        <div style="margin-top:18px;text-align:center;">
+          <button class="quick-login-btn" id="quickLoginBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            ID + PIN ile giriş
+          </button>
+        </div>
         <div id="loginStatus" class="login-status"></div>
       </div>
     </div>
